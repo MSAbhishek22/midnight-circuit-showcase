@@ -145,6 +145,17 @@
     font-family: "Oswald", sans-serif; font-weight: 500;
   }
   .hero-meta b { color: var(--bone-dim); font-weight: 500; }
+  .hero3d-wrap {
+    margin: 36px auto 0; max-width: 920px;
+    border: 1px solid var(--glass-border); border-radius: var(--radius);
+    overflow: hidden; background: #05050a;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 64px rgba(227, 168, 43, 0.10);
+  }
+  #hero3d { display: block; width: 100%; height: 360px; cursor: grab; touch-action: pan-y; }
+  #hero3d:active { cursor: grabbing; }
+  .hero3d-cap { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--bone-faint); border-top: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.03); }
+  .scroll-cue { display: inline-block; margin-top: 22px; font-family: "Oswald", sans-serif; font-weight: 500; font-size: 14px; letter-spacing: 0.18em; text-transform: uppercase; text-decoration: none; color: var(--amber); border: 1px solid rgba(227, 168, 43, 0.45); border-radius: 999px; padding: 9px 20px; }
+  .scroll-cue:hover { border-color: var(--amber); }
 
   /* ---------- How it works ---------- */
   .how {
@@ -306,10 +317,15 @@
       <img src="out/hero.png" alt="Midnight Circuit hero art: a code-drawn noir skyline with amber lit windows, searchlight beams, rain and a crescent moon" width="1200" height="540">
     </div>
     <div class="hero-meta">Vol. 04 · <b>11–12 December 2026</b> · Bengaluru · <b>300 hackers</b> · ₹4,00,000 in prizes</div>
+    <div class="hero3d-wrap">
+      <canvas id="hero3d" aria-label="3D noir skyline with amber lit windows, searchlights, rain and a crescent moon"></canvas>
+      <p class="hero3d-cap">The skyline, drawn in 3D — drag to spin.</p>
+    </div>
+    <a class="scroll-cue" href="#how">↓ How the kit works</a>
   </div>
 </section>
 
-<section class="how">
+<section class="how" id="how">
   <div class="wrap">
     <h2>How the kit works</h2>
     <p class="sub">Three moving parts. Everything else is rendering.</p>
@@ -422,6 +438,183 @@
         if (j !== null) { e.preventDefault(); activate(tabs[j], true); }
       });
     });
+  })();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+  /* Midnight Circuit hero 3D — the noir skyline in 3D: dark towers with amber
+     lit windows, a crescent moon, sweeping searchlights, falling rain.
+     Three.js r160 UMD via jsDelivr. Auto-starts on first load; if the CDN is
+     unreachable this is a guarded no-op and the page is unchanged. Drag to
+     spin. Pauses on prefers-reduced-motion or a hidden tab. */
+  (function () {
+    var canvas = document.getElementById('hero3d');
+    if (!canvas || !window.THREE) return; // CDN unreachable — page stays as-is
+    var THREE = window.THREE;
+    var wrap = canvas.parentElement;
+    var renderer;
+    try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true }); }
+    catch (e) { return; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05050a);
+    scene.fog = new THREE.Fog(0x05050a, 18, 34);
+    var camera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+    camera.position.set(0, 4.5, 15);
+    camera.lookAt(0, 2.2, 0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    var moonLight = new THREE.DirectionalLight(0xf3eee1, 0.7);
+    moonLight.position.set(6, 10, 4);
+    scene.add(moonLight);
+
+    var rig = new THREE.Group();
+    scene.add(rig);
+
+    // Ground
+    var ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(40, 20),
+      new THREE.MeshStandardMaterial({ color: 0x0a0a10, roughness: 1 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    rig.add(ground);
+
+    // Towers with amber lit windows
+    var towerMat = new THREE.MeshStandardMaterial({ color: 0x101018, roughness: 0.85 });
+    var winMat = new THREE.MeshBasicMaterial({ color: 0xe3a82b });
+    var winMatDim = new THREE.MeshBasicMaterial({ color: 0x8a6a25 });
+    var towers = [
+      { x: -7.5, w: 2.6, h: 5.5, d: 2.2 }, { x: -4.6, w: 2.2, h: 8.0, d: 2.0 },
+      { x: -1.9, w: 2.8, h: 6.2, d: 2.4 }, { x: 1.1, w: 2.4, h: 9.2, d: 2.2 },
+      { x: 4.0, w: 2.6, h: 6.8, d: 2.0 }, { x: 6.9, w: 2.4, h: 5.0, d: 2.2 },
+      { x: -3.2, w: 2.0, h: 4.2, d: 1.8, z: -2.5 }, { x: 2.6, w: 2.0, h: 4.8, d: 1.8, z: -2.5 }
+    ];
+    towers.forEach(function (t) {
+      var tower = new THREE.Mesh(new THREE.BoxGeometry(t.w, t.h, t.d), towerMat);
+      tower.position.set(t.x, t.h / 2, t.z || 0);
+      rig.add(tower);
+      var rows = Math.floor(t.h / 0.9), cols = Math.max(1, Math.floor(t.w / 0.7));
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          if (Math.random() < 0.45) continue;
+          var win = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.28, 0.38),
+            Math.random() < 0.6 ? winMat : winMatDim
+          );
+          win.position.set(
+            t.x - t.w / 2 + 0.45 + c * 0.7,
+            0.7 + r * 0.9,
+            (t.z || 0) + t.d / 2 + 0.01
+          );
+          rig.add(win);
+        }
+      }
+      // Rooftop beacon
+      var beacon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xc93b3b })
+      );
+      beacon.position.set(t.x, t.h + 0.12, t.z || 0);
+      rig.add(beacon);
+    });
+
+    // Crescent moon: bright disc + dark disc offset in front
+    var moon = new THREE.Mesh(
+      new THREE.CircleGeometry(1.5, 40),
+      new THREE.MeshBasicMaterial({ color: 0xf3eee1 })
+    );
+    moon.position.set(-8.5, 9.5, -8);
+    rig.add(moon);
+    var moonShade = new THREE.Mesh(
+      new THREE.CircleGeometry(1.35, 40),
+      new THREE.MeshBasicMaterial({ color: 0x05050a })
+    );
+    moonShade.position.set(-7.9, 9.8, -7.9);
+    rig.add(moonShade);
+
+    // Searchlight beams
+    var beams = [];
+    [-5.5, 5.5].forEach(function (x, i) {
+      var beam = new THREE.Mesh(
+        new THREE.ConeGeometry(1.5, 12, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xe3a82b, transparent: true, opacity: 0.10, side: THREE.DoubleSide, depthWrite: false })
+      );
+      beam.position.set(x, 6, -1);
+      beam.rotation.z = i === 0 ? 0.5 : -0.5;
+      beam.userData.baseZ = beam.rotation.z;
+      rig.add(beam);
+      beams.push(beam);
+      var lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 10, 10),
+        new THREE.MeshBasicMaterial({ color: 0xe3a82b })
+      );
+      lamp.position.set(x, 0.2, -1);
+      rig.add(lamp);
+    });
+
+    // Rain
+    var rainCount = 700;
+    var rainPos = new Float32Array(rainCount * 3);
+    for (var i = 0; i < rainCount; i++) {
+      rainPos[i * 3] = -14 + Math.random() * 28;
+      rainPos[i * 3 + 1] = Math.random() * 14;
+      rainPos[i * 3 + 2] = -4 + Math.random() * 10;
+    }
+    var rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    var rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9db4d4, size: 0.06, transparent: true, opacity: 0.7 }));
+    rig.add(rain);
+
+    var targetRotY = 0, rotY = 0, dragging = false, lastX = 0, lastY = 0, tiltX = 0, targetTilt = 0;
+    canvas.addEventListener('pointerdown', function (e) { dragging = true; lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      targetRotY += (e.clientX - lastX) * 0.008;
+      targetTilt = Math.max(-0.15, Math.min(0.3, targetTilt + (e.clientY - lastY) * 0.004));
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      canvas.addEventListener(ev, function () { dragging = false; });
+    });
+
+    function resize() {
+      var w = wrap.clientWidth, h = wrap.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var clock = new THREE.Clock();
+    var raf = null;
+    function frame() {
+      raf = null;
+      var t = clock.getElapsedTime();
+      if (reduced) { renderer.render(scene, camera); return; } // one static frame
+      rotY += (targetRotY - rotY) * 0.06;
+      tiltX += (targetTilt - tiltX) * 0.06;
+      rig.rotation.y = rotY + Math.sin(t * 0.08) * 0.04;
+      rig.rotation.x = tiltX;
+      beams.forEach(function (b, i) {
+        b.rotation.z = b.userData.baseZ + Math.sin(t * 0.5 + i * 2.1) * 0.35;
+      });
+      var pos = rain.geometry.attributes.position;
+      for (var i = 0; i < rainCount; i++) {
+        var y = pos.getY(i) - 0.09;
+        if (y < 0) y = 14;
+        pos.setY(i, y);
+      }
+      pos.needsUpdate = true;
+      renderer.render(scene, camera);
+      if (!document.hidden) raf = requestAnimationFrame(frame);
+    }
+    function kick() { if (raf === null && !document.hidden) raf = requestAnimationFrame(frame); }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) { clock.getDelta(); kick(); } });
+    kick();
+    if (reduced) renderer.render(scene, camera);
   })();
 </script>
 
